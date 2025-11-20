@@ -1,0 +1,5 @@
+FormCode,ShipmentID,WarehouseID,EventType,RefType,PayloadJson,UserEmail
+ORDER-001,SHIP-001,GUDANG-A,gate_in,order,"{""weight"":1000,""vehicle_type"":""truck""}",driver@mmm.com
+ORDER-001,SHIP-001,GUDANG-A,loading_start,order,"{""weight"":1000,""dock"":1}",operator@mmm.com
+ORDER-001,SHIP-001,GUDANG-A,loading_complete,order,"{""weight"":1000,""dock"":1}",operator@mmm.com
+ORDER-001,SHIP-001,GUDANG-A,gate_out,order,"{""weight"":1000,""duration"":45}",driver@mmm.com

@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+model TestConnection {
+  id        String   @id @default(cuid())
+  message   String   @db.VarChar(255)
+  timestamp DateTime @default(now()) @db.Timestamp(0)
+  @@map("test_connection")
+}
+model ScanEvent {
+  id           String    @id @default(cuid()) @db.VarChar(64)
+  formCode     String    @db.VarChar(64)
+  shipmentId   String?   @db.VarChar(64)
+  warehouseId  String?   @db.VarChar(64)
+  eventType    String    @db.VarChar(32)
+  refType      String?   @db.VarChar(32)
+  payload      Json
+  userEmail    String?   @db.VarChar(191)
+  ts           DateTime?
+  createdAt    DateTime  @default(now()) @db.Timestamp(0)
+  @@index([formCode, eventType])
+  @@index([eventType, createdAt])
+  @@index([createdAt])
+  @@index([userEmail])
+  @@map("scan_event")
+}
+model SpreadsheetImport {
+  id         String   @id @default(cuid()) @db.VarChar(64)
+  source     String   @db.VarChar(64)
+  sheetName  String   @db.VarChar(128)
+  rows       Int      @default(0)
+  status     String   @db.VarChar(32)
+  startedAt  DateTime @default(now()) @db.Timestamp(0)
+  finishedAt DateTime?
+  meta       Json?
+  rowsRel    SpreadsheetRow[]
+  @@index([source, sheetName])
+  @@map("spreadsheet_import")
+}
+model SpreadsheetRow {
+  id        String   @id @default(cuid()) @db.VarChar(64)
+  importId  String   @db.VarChar(64)
+  rowIndex  Int
+  data      Json
+  createdAt DateTime @default(now()) @db.Timestamp(0)
+  import    SpreadsheetImport @relation(fields: [importId], references: [id])
+  @@index([importId])
+  @@map("spreadsheet_row")
+}
+model ApiLog {
+  id         String   @id @default(cuid()) @db.VarChar(64)
+  route      String   @db.VarChar(128)
+  method     String   @db.VarChar(16)
+  status     Int      @default(200)
+  durationMs Int?
+  actor      String?  @db.VarChar(191)
+  message    String?  @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamp(0)
+  @@index([route, createdAt])
+  @@map("api_log")
+}

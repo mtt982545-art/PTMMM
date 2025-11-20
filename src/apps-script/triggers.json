@@ -1,0 +1,18 @@
+{
+  "timeBased": [
+    {
+      "functionName": "cronSyncAll",
+      "type": "clock",
+      "startTime": "2024-01-01T00:00:00Z",
+      "timeZone": "Asia/Jakarta",
+      "frequency": "every 15 minutes"
+    },
+    {
+      "functionName": "cronSyncReports",
+      "type": "clock",
+      "startTime": "2024-01-01T06:00:00Z",
+      "timeZone": "Asia/Jakarta",
+      "frequency": "every 6 hours"
+    }
+  ]
+}
