@@ -12,7 +12,6 @@ import { getInventoryProductsForWarehouses } from '@/lib/services/inventory-serv
 import { listAvailableSchedulesForWarehouses } from '@/lib/services/scheduling-service'
 import { createInvoiceForShipment, linkScheduleToShipment } from '@/lib/services/documents-service'
 import { buildShipmentQrToken, upsertShipmentQrToken } from '@/lib/services/qr-token'
-import { Prisma } from '@prisma/client'
 import RouteOverviewPanel from '@/components/ui/route-overview-panel'
 import ShipmentRouteBadgesPanel from '@/components/ui/shipment-route-badges-panel'
 import ShipmentRoutePanel from '@/components/ui/shipment-route-panel'
@@ -126,7 +125,7 @@ export default async function MarketingDashboardPage({ searchParams }: { searchP
               productName: productCode,
               uom,
               collyCount: 0,
-              qtyUnit: new Prisma.Decimal(isFinite(qtyUnit) ? qtyUnit : 0),
+              qtyUnit: Number.isFinite(qtyUnit) ? qtyUnit : 0,
               weightKg: null,
               volumeM3: null,
               notes: null,
