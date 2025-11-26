@@ -37,3 +37,34 @@ export async function maybeAdvanceShipmentLeg(parsed: { shipmentId?: string | nu
     } catch {}
   }
 }
+
+export async function listWarehousesForOrganization(orgId: string): Promise<Array<{ id: string; organizationId: string; code: string; name: string; isActive: boolean; createdAt: Date }>> {
+  const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string; code: string; name: string; is_active: number; created_at: Date }>>`
+    SELECT id, organization_id, code, name, is_active, created_at
+    FROM warehouse
+    WHERE organization_id = ${orgId}
+    ORDER BY created_at DESC
+  `
+  return rows.map((r) => ({ id: r.id, organizationId: r.organization_id, code: r.code, name: r.name, isActive: !!r.is_active, createdAt: r.created_at }))
+}
+
+export async function createWarehouseForOrganization(orgId: string, code: string, name: string): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO warehouse (id, organization_id, code, name, is_active)
+    VALUES (UUID(), ${orgId}, ${code}, ${name}, 1)
+  `
+}
+
+export async function updateWarehouseName(id: string, name: string): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE warehouse SET name = ${name}
+    WHERE id = ${id}
+  `
+}
+
+export async function setWarehouseActive(id: string, isActive: boolean): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE warehouse SET is_active = ${isActive ? 1 : 0}
+    WHERE id = ${id}
+  `
+}

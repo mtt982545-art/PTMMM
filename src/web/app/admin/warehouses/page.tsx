@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getServerUserContext, requireRole } from '@/lib/auth/server-auth'
 import { prisma } from '@/lib/prisma'
+import { listWarehousesForOrganization, createWarehouseForOrganization, updateWarehouseName, setWarehouseActive } from '@/lib/services/multi-warehouse-service'
 import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ export default async function AdminWarehousesPage() {
     const code = String(formData.get('code') || '').trim()
     const name = String(formData.get('name') || '').trim()
     if (!orgId || !code || !name) return
-    await prisma.warehouse.create({ data: { organizationId: orgId, code, name, isActive: true } })
+    await createWarehouseForOrganization(orgId, code, name)
   }
 
   async function updateWarehouse(formData: FormData) {
@@ -26,7 +27,7 @@ export default async function AdminWarehousesPage() {
     const id = String(formData.get('id') || '')
     const name = String(formData.get('name') || '').trim()
     if (!id || !name) return
-    await prisma.warehouse.update({ where: { id }, data: { name } })
+    await updateWarehouseName(id, name)
   }
 
   async function toggleWarehouse(formData: FormData) {
@@ -34,11 +35,11 @@ export default async function AdminWarehousesPage() {
     const id = String(formData.get('id') || '')
     const isActive = String(formData.get('isActive') || 'true') === 'true'
     if (!id) return
-    await prisma.warehouse.update({ where: { id }, data: { isActive } })
+    await setWarehouseActive(id, isActive)
   }
 
   const orgs = await prisma.organization.findMany({ orderBy: { name: 'asc' } })
-  const whs = await prisma.warehouse.findMany({ where: { organizationId: user.orgId }, orderBy: { createdAt: 'desc' } })
+  const whs = await listWarehousesForOrganization(user.orgId)
 
   return (
     <AppShell>
