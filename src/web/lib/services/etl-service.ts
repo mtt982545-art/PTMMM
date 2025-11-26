@@ -17,7 +17,8 @@ export async function importSpreadsheet(data: EtlImportInput) {
     throw new AppError(400, 'Rows required');
   }
   const res = await prisma.$transaction(async (tx) => {
-    const imp = await tx.spreadsheetImport.create({
+    const anyTx = tx as any
+    const imp = await anyTx.spreadsheetImport.create({
       data: {
         source: parsed.source,
         sheetName: parsed.sheetName,
@@ -26,9 +27,29 @@ export async function importSpreadsheet(data: EtlImportInput) {
         meta: parsed.meta ?? undefined,
       },
     });
-    await tx.spreadsheetRow.createMany({
+    await anyTx.spreadsheetRow.createMany({
       data: parsed.rows.map((r, i) => ({ importId: imp.id, rowIndex: i + 1, data: r })),
     });
+    try {
+      const s = parsed.sheetName.toLowerCase()
+      if (s.includes('order')) {
+        for (const r of parsed.rows) {
+          const oc = String((r as any)?.order_code || '')
+          if (!oc) continue
+          await tx.$executeRaw`INSERT INTO orders (order_code, customer, origin, destination, status) VALUES (${oc}, ${(r as any)?.customer ?? ''}, ${(r as any)?.origin ?? ''}, ${(r as any)?.destination ?? ''}, ${(r as any)?.status ?? 'new'})`
+        }
+      } else if (s.includes('shipment')) {
+        for (const r of parsed.rows) {
+          const sid = String((r as any)?.shipment_id || '')
+          if (!sid) continue
+          await tx.$executeRaw`INSERT INTO shipments (shipment_id, customer, origin, destination, status) VALUES (${sid}, ${(r as any)?.customer ?? ''}, ${(r as any)?.origin ?? ''}, ${(r as any)?.destination ?? ''}, ${(r as any)?.status ?? 'in_transit'})`
+        }
+      } else if (s.includes('event')) {
+        for (const r of parsed.rows) {
+          await tx.$executeRaw`INSERT INTO scan_event (id, formCode, shipmentId, warehouseId, eventType, refType, payload, userEmail, ts, createdAt) VALUES (${(r as any)?.id ?? null}, ${(r as any)?.formCode ?? ''}, ${(r as any)?.shipmentId ?? null}, ${(r as any)?.warehouseId ?? null}, ${(r as any)?.eventType ?? ''}, ${(r as any)?.refType ?? null}, ${JSON.stringify((r as any)?.payload ?? {})}, ${(r as any)?.userEmail ?? null}, ${((r as any)?.ts ? new Date((r as any)?.ts) : null)}, ${new Date()})`
+        }
+      }
+    } catch {}
     return { importId: imp.id, rows: parsed.rows.length };
   });
   return res;

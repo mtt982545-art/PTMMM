@@ -408,68 +408,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 215, 0, 0.2)',
-            borderRadius: 16,
-            padding: 32
-          }}>
-            <h3 style={{
-              fontSize: 24,
-              fontWeight: 600,
-              color: '#FFD700',
-              marginBottom: 16
-            }}>
-              Manfaat Bisnis Modul X
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 style={{
-                  color: '#FFD700',
-                  fontWeight: 600,
-                  marginBottom: 8
-                }}>Efisiensi Operasional</h4>
-                <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                  Mengurangi waktu administrasi dengan integrasi otomatis antara Sheet dan database,
-                  menghilangkan double input dan human error.
-                </p>
-              </div>
-              <div>
-                <h4 style={{
-                  color: '#FFD700',
-                  fontWeight: 600,
-                  marginBottom: 8
-                }}>Traceability Lengkap</h4>
-                <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                  Setiap shipment bisa dilacak dari order sampai delivery dengan event timestamp lengkap,
-                  memudahkan audit dan penyelesaian masalah.
-                </p>
-              </div>
-              <div>
-                <h4 style={{
-                  color: '#FFD700',
-                  fontWeight: 600,
-                  marginBottom: 8
-                }}>KPI Real-time</h4>
-                <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                  Dashboard menampilkan metrik performa harian yang bisa diakses kapan saja,
-                  mendukung pengambilan keputusan berbasis data.
-                </p>
-              </div>
-              <div>
-                <h4 style={{
-                  color: '#FFD700',
-                  fontWeight: 600,
-                  marginBottom: 8
-                }}>Komunikasi Terpusat</h4>
-                <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                  Semua pihak (admin, security, driver, manajemen) menggunakan data yang sama,
-                  mengurangi miss komunikasi dan konflik informasi.
-                </p>
-              </div>
-            </div>
-          </div>
+          
         </div>
       </section>
 
@@ -477,10 +416,11 @@ export default function Home() {
       <section id="kontak" className="py-20" style={{ background: 'rgba(0, 0, 0, 0.9)' }}>
         <div className="container mx-auto px-6 text-center">
           <h2 style={{
-            fontSize: 'clamp(2rem, 4vw, 3rem)',
-            fontWeight: 700,
-            color: '#FFD700',
-            marginBottom: 16
+            fontSize: 'clamp(2rem, 3.5vw, 3rem)',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            letterSpacing: '0.5px',
+            marginBottom: 24
           }}>
             Siap Meningkatkan Efisiensi Logistik Anda?
           </h2>

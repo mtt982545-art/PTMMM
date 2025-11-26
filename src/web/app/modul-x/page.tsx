@@ -29,7 +29,6 @@
 import AppShell from '@/components/layout/app-shell';
 import FeatureCard from '../../components/ui/feature-card';
 import SectionHeader from '../../components/ui/section-header';
-import GlassCard from '../../components/ui/glass-card';
 import InteractiveButton from '../(client)/interactive-button';
 import { useEffect, useState } from 'react';
 import { formatNumber } from '@/lib/kpi-helpers';
@@ -459,10 +458,11 @@ export default function ModulXPage() {
       <section className="py-20" style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(0, 0, 0, 0.8))' }}>
         <div className="container mx-auto px-6 text-center">
           <h2 style={{
-            fontSize: 'clamp(2rem, 4vw, 3rem)',
-            fontWeight: 700,
-            color: '#FFD700',
-            marginBottom: 16
+            fontSize: 'clamp(2rem, 3.5vw, 3rem)',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            letterSpacing: '0.5px',
+            marginBottom: 24
           }}>
             Siap Meningkatkan Efisiensi Logistik?
           </h2>
@@ -486,44 +486,7 @@ export default function ModulXPage() {
         </div>
       </section>
 
-      {/* GlassCard Component Demo */}
-      <section className="py-20" style={{ background: 'rgba(0, 0, 0, 0.9)' }}>
-        <div className="container mx-auto px-6">
-          <SectionHeader 
-            title="Contoh Komponen GlassCard"
-            subtitle="Demonstrasi penggunaan komponen GlassCard yang reusable"
-            align="center"
-          />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            <GlassCard>
-              <h3 style={{ color: '#FFD700', marginBottom: 12 }}>Card Default</h3>
-              <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                GlassCard dengan padding medium default, cocok untuk konten umum.
-              </p>
-            </GlassCard>
-            
-            <GlassCard padding="sm">
-              <h3 style={{ color: '#FFD700', marginBottom: 8 }}>Small Padding</h3>
-              <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                GlassCard dengan padding kecil untuk konten ringkas.
-              </p>
-            </GlassCard>
-            
-            <GlassCard padding="lg">
-              <h3 style={{ color: '#FFD700', marginBottom: 16 }}>Large Padding</h3>
-              <p style={{ color: '#b0b7c3', lineHeight: 1.6 }}>
-                GlassCard dengan padding besar untuk konten yang lebih kompleks.
-              </p>
-              <div style={{ marginTop: 16 }}>
-                <InteractiveButton href="/dashboard" className="ui-btn ui-btn--primary ui-pressable">
-                  Contoh Button
-                </InteractiveButton>
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-      </section>
+      
     </AppShell>
   );
 }

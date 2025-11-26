@@ -57,10 +57,28 @@ export async function loginWithPassword(email: string, password: string): Promis
       };
     }
     
+    let csrf = '';
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+      if (match) {
+        csrf = decodeURIComponent(match[1]);
+      } else {
+        try {
+          const buf = new Uint8Array(16);
+          crypto.getRandomValues(buf);
+          csrf = Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch {
+          csrf = Math.random().toString(36).slice(2);
+        }
+        const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `csrf_token=${encodeURIComponent(csrf)}; Path=/; SameSite=Lax${secure}`;
+      }
+    }
+
     // Get user role
     const roleResponse = await fetch('/api/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf },
       body: JSON.stringify({ email, password }),
     });
     

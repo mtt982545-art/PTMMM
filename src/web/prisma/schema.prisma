@@ -1,57 +1,481 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
-model TestConnection {
-  id        String   @id @default(cuid())
-  message   String   @db.VarChar(255)
-  timestamp DateTime @default(now()) @db.Timestamp(0)
-  @@map("test_connection")
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Char(36)
+  code      String   @unique @db.VarChar(32)
+  name      String   @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active") @db.TinyInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(0)
+
+  warehouses     Warehouse[]
+  publicRequests PublicRequest[]
+  orders         Order[]
+  routes         Route[]
+  shipments      Shipment[]
+  shipmentItems  ShipmentItem[]
+  qrTickets      QrTicket[]
+  scanEvents     ScanEvent[]
+  auditLogs      AuditLog[]
+  inventoryKpi   InventoryKpiDaily[]
+  fleetKpi       FleetKpiDaily[]
+  vendors        LogisticVendor[]
+  vehicles       Vehicle[]
+  driverProfiles DriverProfile[]
+  trackingPings  TrackingPing[]
+
+  @@map("organization")
 }
+
+model Warehouse {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @map("organization_id") @db.Char(36)
+  code           String   @db.VarChar(32)
+  name           String   @db.VarChar(255)
+  isActive       Boolean  @default(true) @map("is_active") @db.TinyInt
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  publicRequests PublicRequest[]
+  orders         Order[]
+  shipments      Shipment[]
+  routeStops     RouteStop[]
+  shipmentItems  ShipmentItem[]
+  qrTickets      QrTicket[]
+  scanEvents     ScanEvent[]
+
+  @@unique([organizationId, code], name: "uq_wh_org_code")
+  @@index([organizationId], name: "idx_wh_org")
+  @@map("warehouse")
+}
+
+model LogisticVendor {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @db.Char(36)
+  code           String   @db.VarChar(32)
+  name           String   @db.VarChar(255)
+  contactName    String?  @map("contact_name") @db.VarChar(255)
+  contactPhone   String?  @map("contact_phone") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  vehicles     Vehicle[]
+  drivers      DriverProfile[]
+
+  @@unique([organizationId, code], name: "uq_vendor_org_code")
+  @@index([organizationId], name: "idx_vendor_org")
+  @@map("logistic_vendor")
+}
+
+model Vehicle {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @db.Char(36)
+  plateNumber    String   @map("plate_number") @db.VarChar(32)
+  name           String?  @db.VarChar(64)
+  type           String?  @db.VarChar(64)
+  capacityKg     Decimal? @map("capacity_kg") @db.Decimal(18, 3)
+  capacityM3     Decimal? @map("capacity_m3") @db.Decimal(18, 3)
+  isInternal     Boolean  @default(true) @map("is_internal") @db.TinyInt
+  vendorId       String?  @db.Char(36)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  vendor         LogisticVendor? @relation(fields: [vendorId], references: [id])
+  driverProfiles DriverProfile[] @relation("DriverDefaultVehicle")
+
+  @@unique([organizationId, plateNumber], name: "uq_vehicle_org_plate")
+  @@index([organizationId], name: "idx_vehicle_org")
+  @@index([vendorId], name: "idx_vehicle_vendor")
+  @@map("vehicle")
+}
+
+model DriverProfile {
+  id               String   @id @default(uuid()) @db.Char(36)
+  organizationId   String   @db.Char(36)
+  supabaseUserId   String?  @map("supabase_user_id") @db.Char(36)
+  name             String   @db.VarChar(255)
+  phone            String?  @db.VarChar(50)
+  isInternal       Boolean  @default(true) @map("is_internal") @db.TinyInt
+  vendorId         String?  @db.Char(36)
+  defaultVehicleId String?  @map("default_vehicle_id") @db.Char(36)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  vendor         LogisticVendor? @relation(fields: [vendorId], references: [id])
+  defaultVehicle Vehicle?        @relation("DriverDefaultVehicle", fields: [defaultVehicleId], references: [id])
+
+  @@index([organizationId], name: "idx_driver_org")
+  @@index([supabaseUserId], name: "idx_driver_user")
+  @@index([vendorId], name: "idx_driver_vendor")
+  @@map("driver_profile")
+}
+
+model PublicRequest {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @db.Char(36)
+  warehouseId    String?  @db.Char(36)
+  publicEmail    String   @map("public_email") @db.VarChar(255)
+  publicName     String?  @map("public_name") @db.VarChar(255)
+  requestType    String   @map("request_type") @db.VarChar(32)
+  status         String   @default("submitted") @db.VarChar(32)
+  payload        Json?    @db.Json
+  orderId        String?  @map("order_id") @db.Char(36)
+  shipmentId     String?  @map("shipment_id") @db.Char(36)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse?   @relation(fields: [warehouseId], references: [id])
+  order        Order?       @relation(fields: [orderId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+
+  @@index([organizationId, status, createdAt], name: "idx_pubreq_org_status")
+  @@index([publicEmail], name: "idx_pubreq_email")
+  @@index([orderId], name: "idx_pubreq_order")
+  @@index([shipmentId], name: "idx_pubreq_shipment")
+  @@map("public_request")
+}
+
+model Order {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @map("organization_id") @db.Char(36)
+  warehouseId    String   @map("warehouse_id") @db.Char(36)
+  orderCode      String   @map("order_code") @db.VarChar(64)
+  customer       String   @db.VarChar(255)
+  origin         String   @db.VarChar(255)
+  destination    String   @db.VarChar(255)
+  status         String   @default("new") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  publicRequests PublicRequest[]
+
+  @@unique([organizationId, orderCode], name: "uq_orders_org_code")
+  @@index([organizationId], name: "idx_orders_org")
+  @@index([warehouseId], name: "idx_orders_wh")
+  @@index([organizationId, status, createdAt], name: "idx_orders_org_status_created")
+  @@map("orders")
+}
+
+model Route {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @map("organization_id") @db.Char(36)
+  code           String   @db.VarChar(64)
+  description    String?  @db.VarChar(255)
+  status         String   @default("planned") @db.VarChar(32)
+  driverName     String?  @map("driver_name") @db.VarChar(255)
+  vehicleId      String?  @map("vehicle_id") @db.VarChar(64)
+  isExternal     Boolean  @default(false) @map("is_external") @db.TinyInt
+  vendorName     String?  @map("vendor_name") @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  stops        RouteStop[]
+  shipments    Shipment[]
+
+  @@unique([organizationId, code], name: "uq_route_org_code")
+  @@index([organizationId, status], name: "idx_route_org_status")
+  @@map("route")
+}
+
+model RouteStop {
+  id               String    @id @default(uuid()) @db.Char(36)
+  routeId          String    @db.Char(36)
+  stopSeq          Int       @map("stop_seq")
+  warehouseId      String    @map("warehouse_id") @db.Char(36)
+  plannedArrival   DateTime? @map("planned_arrival") @db.DateTime(0)
+  plannedDeparture DateTime? @map("planned_departure") @db.DateTime(0)
+  actualArrival    DateTime? @map("actual_arrival") @db.DateTime(0)
+  actualDeparture  DateTime? @map("actual_departure") @db.DateTime(0)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+
+  route         Route        @relation(fields: [routeId], references: [id])
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+  shipmentItems ShipmentItem[]
+  scanEvents    ScanEvent[]
+
+  @@unique([routeId, stopSeq], name: "uq_route_stop_seq")
+  @@index([routeId], name: "idx_route_stop_route")
+  @@index([warehouseId], name: "idx_route_stop_wh")
+  @@map("route_stop")
+}
+
+model Shipment {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @map("organization_id") @db.Char(36)
+  warehouseId    String   @map("warehouse_id") @db.Char(36)
+  routeId        String?  @db.Char(36)
+  shipmentId     String   @map("shipment_id") @db.VarChar(64)
+  customer       String   @db.VarChar(255)
+  origin         String   @db.VarChar(255)
+  destination    String   @db.VarChar(255)
+  status         String   @default("in_transit") @db.VarChar(32)
+  routePath      Json?    @map("route_path") @db.Json
+  currentLegIndex Int     @default(0) @map("current_leg_index")
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  route          Route?         @relation(fields: [routeId], references: [id])
+  items          ShipmentItem[]
+  qrTickets      QrTicket[]
+  scanEvents     ScanEvent[]
+  publicRequests PublicRequest[]
+  trackingPings  TrackingPing[]
+
+  @@unique([organizationId, shipmentId], name: "uq_ship_org_id")
+  @@index([organizationId], name: "idx_ship_org")
+  @@index([warehouseId], name: "idx_ship_wh")
+  @@index([organizationId, status, createdAt], name: "idx_ship_org_status_created")
+  @@index([routeId], name: "idx_ship_route")
+  @@map("shipments")
+}
+
+model ShipmentItem {
+  id             String    @id @default(uuid()) @db.Char(36)
+  shipmentId     String    @db.Char(36)
+  routeStopId    String?   @map("route_stop_id") @db.Char(36)
+  organizationId String    @map("organization_id") @db.Char(36)
+  warehouseId    String    @map("warehouse_id") @db.Char(36)
+  productCode    String    @map("product_code") @db.VarChar(64)
+  productName    String?   @map("product_name") @db.VarChar(255)
+  uom            String?   @db.VarChar(32)
+  collyCount     Int       @default(0) @map("colly_count")
+  qtyUnit        Decimal?  @map("qty_unit") @db.Decimal(18, 3)
+  weightKg       Decimal?  @map("weight_kg") @db.Decimal(18, 3)
+  volumeM3       Decimal?  @map("volume_m3") @db.Decimal(18, 3)
+  notes          String?   @db.VarChar(255)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.DateTime(0)
+
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  routeStop    RouteStop?   @relation(fields: [routeStopId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+
+  @@index([shipmentId], name: "idx_shipitem_shipment")
+  @@index([organizationId, warehouseId], name: "idx_shipitem_org_wh")
+  @@map("shipment_item")
+}
+
+model QrTicket {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @map("organization_id") @db.Char(36)
+  warehouseId    String?  @map("warehouse_id") @db.Char(36)
+  shipmentId     String   @db.Char(36)
+  token          String   @unique @db.VarChar(128)
+  status         String   @default("active") @db.VarChar(32)
+  createdBy      String?  @map("created_by") @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse?   @relation(fields: [warehouseId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  scanEvents   ScanEvent[]
+  trackingPings TrackingPing[]
+
+  @@index([organizationId, shipmentId], name: "idx_qr_org_shipment")
+  @@index([token], name: "idx_qr_token")
+  @@map("qr_ticket")
+}
+
 model ScanEvent {
-  id           String    @id @default(cuid()) @db.VarChar(64)
-  formCode     String    @db.VarChar(64)
-  shipmentId   String?   @db.VarChar(64)
-  warehouseId  String?   @db.VarChar(64)
-  eventType    String    @db.VarChar(32)
-  refType      String?   @db.VarChar(32)
-  payload      Json
-  userEmail    String?   @db.VarChar(191)
-  ts           DateTime?
-  createdAt    DateTime  @default(now()) @db.Timestamp(0)
-  @@index([formCode, eventType])
-  @@index([eventType, createdAt])
-  @@index([createdAt])
-  @@index([userEmail])
+  id             String    @id @default(uuid()) @db.Char(36)
+  organizationId String?   @map("organization_id") @db.Char(36)
+  warehouseId    String?   @map("warehouse_id") @db.Char(36)
+  shipmentId     String?   @db.Char(36)
+  qrTicketId     String?   @map("qr_ticket_id") @db.Char(36)
+  routeStopId    String?   @map("route_stop_id") @db.Char(36)
+  formCode       String?   @map("form_code") @db.VarChar(64)
+  eventType      String    @map("event_type") @db.VarChar(32)
+  refType        String?   @map("ref_type") @db.VarChar(64)
+  payload        Json?     @db.Json
+  userEmail      String?   @map("user_email") @db.VarChar(255)
+  ts             DateTime? @db.DateTime(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse?    @relation(fields: [warehouseId], references: [id])
+  shipment     Shipment?     @relation(fields: [shipmentId], references: [id])
+  qrTicket     QrTicket?     @relation(fields: [qrTicketId], references: [id])
+  routeStop    RouteStop?    @relation(fields: [routeStopId], references: [id])
+
+  @@index([organizationId], name: "idx_scan_org")
+  @@index([warehouseId], name: "idx_scan_wh")
+  @@index([shipmentId], name: "idx_scan_ship")
+  @@index([createdAt], name: "idx_scan_created")
+  @@index([qrTicketId], name: "idx_scan_qr")
+  @@index([routeStopId], name: "idx_scan_route_stop")
+  @@index([shipmentId, eventType, ts], name: "idx_scan_ship_event_ts")
   @@map("scan_event")
 }
-model SpreadsheetImport {
-  id         String   @id @default(cuid()) @db.VarChar(64)
-  source     String   @db.VarChar(64)
-  sheetName  String   @db.VarChar(128)
-  rows       Int      @default(0)
-  status     String   @db.VarChar(32)
-  startedAt  DateTime @default(now()) @db.Timestamp(0)
-  finishedAt DateTime?
-  meta       Json?
-  rowsRel    SpreadsheetRow[]
-  @@index([source, sheetName])
-  @@map("spreadsheet_import")
+
+model AuditLog {
+  id       BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  action   String   @db.VarChar(32)
+  entity   String   @db.VarChar(32)
+  entityId String   @map("entity_id") @db.VarChar(64)
+  userId   String?  @map("user_id") @db.Char(36)
+  orgId    String?  @map("org_id") @db.Char(36)
+  ts       DateTime @default(now()) @db.DateTime(0)
+  details  Json?    @db.Json
+
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  @@index([orgId], name: "idx_audit_org")
+  @@index([entity, entityId], name: "idx_audit_entity")
+  @@map("audit_log")
 }
-model SpreadsheetRow {
+
+model InventoryKpiDaily {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  dataDate          DateTime @map("data_date") @db.Date
+  orgId             String   @map("org_id") @db.Char(36)
+  warehouseId       String   @map("warehouse_id") @db.VarChar(50)
+  productId         String   @map("product_id") @db.VarChar(50)
+  openingQty        Decimal  @default(0.0) @map("opening_qty") @db.Decimal(18, 2)
+  receivedQty       Decimal  @default(0.0) @map("received_qty") @db.Decimal(18, 2)
+  shippedQty        Decimal  @default(0.0) @map("shipped_qty") @db.Decimal(18, 2)
+  adjustmentQty     Decimal  @default(0.0) @map("adjustment_qty") @db.Decimal(18, 2)
+  closingQty        Decimal  @default(0.0) @map("closing_qty") @db.Decimal(18, 2)
+  stockoutEvents    Int      @default(0) @map("stockout_events")
+  avgLeadTimeDays   Decimal? @map("avg_lead_time_days") @db.Decimal(10, 2)
+  inventoryTurnover Decimal? @map("inventory_turnover") @db.Decimal(18, 4)
+  etlTimestamp      DateTime @map("etl_timestamp") @db.DateTime(0)
+  batchId           String   @map("batch_id") @db.VarChar(100)
+  createdAt         DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime? @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  @@unique([dataDate, orgId, warehouseId, productId], name: "uniq_inventory_kpi_daily")
+  @@index([dataDate], name: "idx_inventory_kpi_daily_date")
+  @@index([orgId, warehouseId, dataDate], name: "idx_inv_kpi_org_wh_date")
+  @@map("inventory_kpi_daily")
+}
+
+model RouteSchedule {
+  id               String   @id @default(uuid()) @db.Char(36)
+  organizationId   String   @db.Char(36)
+  warehouseId      String   @db.Char(36)
+  driverProfileId  String?  @db.Char(36)
+  vehicleId        String?  @db.Char(36)
+  routeId          String?  @db.Char(36)
+  shift            String?  @db.VarChar(32)
+  startAt          DateTime? @db.DateTime(0)
+  endAt            DateTime? @db.DateTime(0)
+  status           String   @default("planned") @db.VarChar(32)
+  notes            String?  @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  driver       DriverProfile? @relation(fields: [driverProfileId], references: [id])
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+  route        Route?       @relation(fields: [routeId], references: [id])
+
+  @@index([organizationId, warehouseId, startAt], name: "idx_sched_org_wh_start")
+  @@map("route_schedule")
+}
+
+model Document {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @db.Char(36)
+  shipmentId     String?  @db.Char(36)
+  routeId        String?  @db.Char(36)
+  docType        String   @db.VarChar(32) // invoice, surat_jalan, route_schedule
+  refCode        String?  @db.VarChar(128)
+  path           String?  @db.VarChar(255)
+  metadata       Json?    @db.Json
+  createdBy      String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+  route        Route?       @relation(fields: [routeId], references: [id])
+
+  @@index([organizationId, docType, createdAt], name: "idx_doc_org_type_created")
+  @@map("document")
+}
+
+model InventoryMove {
+  id             String   @id @default(uuid()) @db.Char(36)
+  organizationId String   @db.Char(36)
+  warehouseId    String   @db.Char(36)
+  shipmentId     String?  @db.Char(36)
+  productId      String   @db.VarChar(50)
+  qty            Decimal  @db.Decimal(18, 3)
+  uom            String?  @db.VarChar(32)
+  direction      String   @db.VarChar(8) // in/out
+  eventType      String   @db.VarChar(32)
+  scanEventId    String?  @db.Char(36)
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+  scanEvent    ScanEvent?   @relation(fields: [scanEventId], references: [id])
+
+  @@index([organizationId, warehouseId, createdAt], name: "idx_inv_mv_org_wh_created")
+  @@index([shipmentId], name: "idx_inv_mv_ship")
+  @@map("inventory_move")
+}
+
+model FleetKpiDaily {
+  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  dataDate             DateTime @map("data_date") @db.Date
+  orgId                String   @map("org_id") @db.Char(36)
+  warehouseId          String   @map("warehouse_id") @db.VarChar(50)
+  vehicleId            String   @map("vehicle_id") @db.VarChar(50)
+  isExternal           Boolean  @default(false) @map("is_external") @db.TinyInt
+  vendorId             String?  @map("vendor_id") @db.VarChar(50)
+  totalTrips           Int      @default(0) @map("total_trips")
+  loadedTrips          Int      @default(0) @map("loaded_trips")
+  ontimeDeliveries     Int      @default(0) @map("ontime_deliveries")
+  lateDeliveries       Int      @default(0) @map("late_deliveries")
+  ontimeRate           Decimal? @map("ontime_rate") @db.Decimal(5, 2)
+  avgTripDistanceKm    Decimal? @map("avg_trip_distance_km") @db.Decimal(10, 2)
+  avgTripDurationHours Decimal? @map("avg_trip_duration_hours") @db.Decimal(10, 2)
+  utilizationRate      Decimal? @map("utilization_rate") @db.Decimal(5, 2)
+  totalDistanceKm      Decimal? @map("total_distance_km") @db.Decimal(12, 2)
+  totalCost            Decimal? @map("total_cost") @db.Decimal(18, 2)
+  costPerKm            Decimal? @map("cost_per_km") @db.Decimal(18, 4)
+  etlTimestamp         DateTime @map("etl_timestamp") @db.DateTime(0)
+  batchId              String   @map("batch_id") @db.VarChar(100)
+  createdAt            DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime? @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  @@unique([dataDate, orgId, warehouseId, vehicleId], name: "uniq_fleet_kpi_daily")
+  @@index([dataDate], name: "idx_fleet_kpi_daily_date")
+  @@index([orgId, warehouseId, dataDate], name: "idx_fleet_kpi_org_wh_date")
+  @@map("fleet_kpi_daily")
+}
+
+model TestConnection {
   id        String   @id @default(cuid()) @db.VarChar(64)
-  importId  String   @db.VarChar(64)
-  rowIndex  Int
-  data      Json
-  createdAt DateTime @default(now()) @db.Timestamp(0)
-  import    SpreadsheetImport @relation(fields: [importId], references: [id])
-  @@index([importId])
-  @@map("spreadsheet_row")
+  message   String   @db.VarChar(255)
+  timestamp DateTime @default(now()) @db.Timestamp(0)
+
+  @@map("test_connection")
 }
+
 model ApiLog {
   id         String   @id @default(cuid()) @db.VarChar(64)
   route      String   @db.VarChar(128)
@@ -61,6 +485,31 @@ model ApiLog {
   actor      String?  @db.VarChar(191)
   message    String?  @db.Text
   createdAt  DateTime @default(now()) @db.Timestamp(0)
-  @@index([route, createdAt])
+
+  @@index([route, createdAt], name: "idx_api_log_route_created_at")
   @@map("api_log")
+}
+
+model TrackingPing {
+  id             String    @id @default(uuid()) @db.Char(36)
+  organizationId String    @map("organization_id") @db.Char(36)
+  userId         String    @map("user_id") @db.Char(36)
+  qrTicketId     String?   @map("qr_ticket_id") @db.Char(36)
+  shipmentId     String?   @db.Char(36)
+  lat            Decimal   @db.Decimal(10, 6)
+  lng            Decimal   @db.Decimal(10, 6)
+  speed          Decimal?  @db.Decimal(10, 2)
+  ts             DateTime? @db.DateTime(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(0)
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  qrTicket       QrTicket?     @relation(fields: [qrTicketId], references: [id])
+  shipment       Shipment?     @relation(fields: [shipmentId], references: [id])
+
+  @@index([organizationId], name: "idx_ping_org")
+  @@index([userId], name: "idx_ping_user")
+  @@index([qrTicketId], name: "idx_ping_qr")
+  @@index([shipmentId], name: "idx_ping_ship")
+  @@index([ts], name: "idx_ping_ts")
+  @@map("tracking_ping")
 }

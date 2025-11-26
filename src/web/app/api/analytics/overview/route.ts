@@ -1,20 +1,15 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-import { toHttpResponse, UnauthorizedError, ForbiddenError } from '@/lib/errors'
+import { toHttpResponse } from '@/lib/errors'
 import { logApiAccess, logApiError } from '@/lib/logging'
-import { getServerUserContext, canViewSection, requireRole } from '@/lib/auth/server-auth'
 import { getAnalyticsOverviewForUser } from '@/lib/services/analytics-service'
+import { guardApiRoute } from '@/lib/auth/route-guard'
+import { ensureSectionAccess } from '@/lib/auth/server-auth'
 
-export async function GET() {
+export const GET = guardApiRoute(async (_req, ctx) => {
   const start = Date.now()
   try {
-    const ctx = await getServerUserContext()
-    if (!ctx) throw new UnauthorizedError()
-
-    const allowKpi = requireRole(ctx, ['admin', 'ops', 'marketing']) && canViewSection(ctx, 'kpi')
-    const allowEvents = requireRole(ctx, ['admin', 'ops']) && canViewSection(ctx, 'events')
-    if (!allowKpi) throw new ForbiddenError()
-
+    const allowEvents = ensureSectionAccess(ctx, 'events', ['admin','ops'])
     const { data, kpi } = await getAnalyticsOverviewForUser(ctx)
     logApiAccess('/api/analytics/overview', 'GET', 200, ctx.email, allowEvents ? 'kpi-events-ok' : 'kpi-ok', Date.now() - start)
     return Response.json({ ok: true, data: allowEvents ? data : [], kpi })
@@ -22,4 +17,4 @@ export async function GET() {
     logApiError('/api/analytics/overview', error)
     return toHttpResponse(error)
   }
-}
+}, { section: 'kpi', roles: ['admin','ops','marketing'], rateLimit: { path: '/api/analytics/overview', limit: 120, windowMs: 60_000 } })

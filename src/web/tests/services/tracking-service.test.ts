@@ -85,4 +85,48 @@ describe('tracking-service.getTrackingTimeline', () => {
     const tl = await getTrackingTimeline('UNKNOWN')
     expect(tl).toBeNull()
   })
+
+  it('status event dihitung benar saat last=load_finish', async () => {
+    ;(prisma.scanEvent.findMany as any).mockResolvedValue([
+      makeEvent('E1','gate_in'),
+      makeEvent('E2','load_start'),
+      makeEvent('E3','load_finish'),
+    ])
+
+    const tl = await getTrackingTimeline('FORM-OPS-001')
+    expect(tl).toBeTruthy()
+    expect(tl?.events.map(e => e.status)).toEqual(['completed','completed','in_progress'])
+    expect(tl?.status).toBe('In Transit')
+  })
+
+  it('status event dihitung benar saat last=gate_out', async () => {
+    ;(prisma.scanEvent.findMany as any).mockResolvedValue([
+      makeEvent('E1','gate_in'),
+      makeEvent('E2','load_start'),
+      makeEvent('E3','load_finish'),
+      makeEvent('E4','gate_out'),
+    ])
+
+    const tl = await getTrackingTimeline('FORM-OPS-001')
+    expect(tl).toBeTruthy()
+    expect(tl?.events.map(e => e.status)).toEqual(['completed','completed','completed','in_progress'])
+    expect(tl?.status).toBe('In Transit')
+  })
+
+  it('should deduplicate concurrent scans: pilih event terbaru per type+shipment', async () => {
+    const base = new Date('2024-01-01T00:00:00Z')
+    ;(prisma.scanEvent.findMany as any).mockResolvedValue([
+      makeEvent('E1','gate_in', { location: 'Surabaya' }, { createdAt: new Date(base) }),
+      makeEvent('E2A','load_start', { description: 'Ops start' }, { createdAt: new Date('2024-01-01T00:02:00Z') }),
+      makeEvent('E2B','load_start', { description: 'Security confirm' }, { createdAt: new Date('2024-01-01T00:05:00Z') }),
+      makeEvent('E3','scan', { description: 'Checkpoint 1' }, { createdAt: new Date('2024-01-01T00:10:00Z') }),
+    ])
+
+    const tl = await getTrackingTimeline('DEMO-TRACK-001')
+    expect(tl).toBeTruthy()
+    expect(tl?.events.map(e => e.event_type)).toEqual(['gate_in','load_start','scan'])
+    const ls = tl?.events.find(e => e.event_type === 'load_start')
+    expect(ls?.id).toBe('E2B')
+    expect(tl?.events.map(e => e.status)).toEqual(['completed','completed','in_progress'])
+  })
 })

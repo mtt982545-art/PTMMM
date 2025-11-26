@@ -1,48 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import prisma from '../../../../lib/prisma'
-import { z } from 'zod'
+import { toHttpResponse, ValidationError } from '@/lib/errors'
+import { logApiAccess, logApiError } from '@/lib/logging'
+import { importSpreadsheet } from '@/lib/services/etl-service'
+import { guardApiRoute } from '@/lib/auth/route-guard'
 
-const ImportSchema = z.object({
-  source: z.string().min(1),
-  sheet_name: z.string().min(1),
-  rows: z.array(z.record(z.string(), z.any())).min(1),
-  meta: z.record(z.string(), z.any()).optional(),
-})
-
-export async function POST(req: NextRequest) {
-  const token = req.headers.get('x-etl-token') || ''
-  if (!process.env.ETL_WRITE_TOKEN || token !== process.env.ETL_WRITE_TOKEN) {
-    return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 })
-  }
-
-  let body: unknown
+export const POST = guardApiRoute(async (req) => {
+  const start = Date.now()
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ ok: false, message: 'Bad JSON' }, { status: 400 })
+    let body: any
+    try { body = await req.json() } catch { throw new ValidationError('Bad JSON') }
+    const payload = {
+      source: body?.source,
+      sheetName: body?.sheet_name,
+      rows: Array.isArray(body?.rows) ? body.rows : [],
+      meta: body?.meta,
+    }
+    const res = await importSpreadsheet(payload as any)
+    logApiAccess('/api/etl/spreadsheet', 'POST', 200, undefined, 'import-ok', Date.now() - start)
+    return Response.json({ ok: true, import_id: res.importId, rows: res.rows })
+  } catch (error) {
+    logApiError('/api/etl/spreadsheet', error)
+    return toHttpResponse(error)
   }
-
-  const parsed = ImportSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, message: 'Invalid payload' }, { status: 400 })
-  }
-
-  const d = parsed.data
-  const imp = await prisma.spreadsheetImport.create({
-    data: {
-      source: d.source,
-      sheetName: d.sheet_name,
-      rows: d.rows.length,
-      status: 'done',
-      meta: d.meta ?? undefined,
-    },
-  })
-
-  if (d.rows.length > 0) {
-    await prisma.spreadsheetRow.createMany({
-      data: d.rows.map((r, i) => ({ importId: imp.id, rowIndex: i + 1, data: r })),
-    })
-  }
-
-  return NextResponse.json({ ok: true, import_id: imp.id, rows: d.rows.length })
-}
+}, { section: 'events', roles: ['admin','ops'], token: { header: 'x-etl-token', env: 'ETL_WRITE_TOKEN' }, tokenForbiddenOnMismatch: true, rateLimit: { path: '/api/etl/spreadsheet', limit: 60, windowMs: 60_000, tokenHeaderName: 'x-etl-token' } })

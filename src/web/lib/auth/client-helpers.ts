@@ -21,20 +21,26 @@
  */
 
 import type { AppRole } from '../types';
-import { ROLE_DESTINATIONS } from '../types';
+import { getDashboardPathForRole } from '../types';
 
 /**
  * Role-based redirect destinations
  * Client-safe version using centralized ROLE_DESTINATIONS
  */
-export const CLIENT_ROLE_DESTINATIONS = ROLE_DESTINATIONS;
+export const CLIENT_ROLE_DESTINATIONS = {
+  admin: getDashboardPathForRole('admin'),
+  marketing: getDashboardPathForRole('marketing'),
+  ops: getDashboardPathForRole('ops'),
+  security: getDashboardPathForRole('security'),
+  driver: getDashboardPathForRole('driver'),
+} as const;
 
 /**
  * Get role-based redirect destination (client-safe)
  */
 export function getClientRoleRedirect(role: AppRole | null, fallback: string = '/dashboard'): string {
   if (!role) return fallback;
-  return CLIENT_ROLE_DESTINATIONS[role] || fallback;
+  return getDashboardPathForRole(role) || fallback;
 }
 
 /**

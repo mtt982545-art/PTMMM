@@ -43,12 +43,17 @@ export interface UserContext {
  * Centralized for consistency between client and server
  */
 export const ROLE_DESTINATIONS: Record<AppRole, string> = {
-  marketing: '/marketing/dashboard',
-  ops: '/ops/dashboard',
+  marketing: '/dashboard/marketing',
+  ops: '/ops/load',
   security: '/security/gate',
   driver: '/driver/home',
   admin: '/admin',
 };
+
+export function getDashboardPathForRole(role: AppRole | null | undefined): string {
+  if (!role) return '/dashboard'
+  return ROLE_DESTINATIONS[role] || '/dashboard'
+}
 
 /**
  * Role validation and parsing utility
@@ -69,6 +74,10 @@ export type PermissionSection = 'orders' | 'shipments' | 'events' | 'reports' | 
  * Event types for role-based filtering
  */
 export type EventType = 'gate_in' | 'gate_out' | 'load_start' | 'load_finish' | 'scan' | 'pod';
+
+export type ScanEventType = 'gate_in' | 'gate_out' | 'load_start' | 'load_finish' | 'scan' | 'pod';
+
+export type InventoryMoveDirection = 'in' | 'out';
 
 /**
  * KPI types for role-based visibility

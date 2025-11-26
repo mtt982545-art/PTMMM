@@ -1,0 +1,73 @@
+# PTMMM – Supabase Auth Baseline State (Locked)
+
+## 1) SUMMARY
+
+- Baseline dikunci dan siap untuk pengembangan fitur baru tanpa merusak kontrak fungsi atau RBAC.
+- Tes aktual di `src/web`: **74 passed (74)**, stabil.
+
+Kontrak terjaga:
+
+- `getAnalyticsOverviewForUser`  
+  - Lokasi: `src/web/lib/services/analytics-service.ts:38`  
+  - Filter multi-tenant aktif: `src/web/lib/services/analytics-service.ts:41-45`  
+  - Filter:
+    - `createdAt >= since` (7 hari ke belakang)
+    - `organizationId = ctx.orgId` bila ada
+    - `warehouseId IN ctx.warehouseIds` bila tidak kosong
+
+- `groupByWeek`  
+  - Lokasi: `src/web/lib/services/analytics-service.ts:72-91`  
+  - Signature & output stabil.
+
+- `groupByMonth`  
+  - Lokasi: `src/web/lib/services/analytics-service.ts:93-105`  
+  - Signature & output stabil.
+
+- Handler `POST` `/api/login`  
+  - Lokasi utama: `src/web/app/api/login/route.ts:38`  
+  - Cabang `role === null`: `src/web/app/api/login/route.ts:66-72`  
+  - RBAC redirect: `src/web/app/api/login/route.ts:74-79`  
+  - Perilaku:
+    - Parse JSON aman
+    - Validasi zod
+    - Supabase `signInWithPassword`
+    - `getUserRole` untuk baca role dari DB
+    - Safe redirect (relative path only, fallback `/dashboard`)
+    - Mapping redirect per role via `ROLE_DESTINATIONS`
+
+- `loginWithPassword` (client)  
+  - Lokasi: `src/web/lib/auth/client-auth.ts:37`  
+  - Panggilan `/api/login`: `src/web/lib/auth/client-auth.ts:61-68`  
+  - Bentuk respons: `{ success, user?, role?, redirect? }` (`69-74`)  
+  - Alur:
+    1. Supabase client: `signInWithPassword`
+    2. Panggil `/api/login` untuk RBAC + redirect
+    3. Kembalikan hasil ke UI (success/error, role, redirect)
+
+Baseline ini dianggap **BENAR** dan menjadi referensi utama.  
+Task selanjutnya **harus menjaga**:
+
+- Seluruh test tetap hijau (`npm test` → 74 passed)
+- Kontrak fungsi di atas tidak diubah secara sembarangan
+- RBAC + multi-tenant (orgId, warehouseIds) tetap konsisten dengan dokumen AUTH_SUPABASE_PTMMM & PTMMM_SUPABASE_AUTH_PROMPT
+
+---
+
+## 2) COMMANDS (PowerShell & Bash)
+
+### PowerShell
+
+```powershell
+cd src\web
+npm test
+
+# Dev server Next.js (127.0.0.1:3000)
+cd src\web
+npm run dev
+
+# Uji /api/login (ganti email/password sesuai skenario)
+$body = @{ email = "ops@ptmmm.co"; password = "password-ok"; redirect = "/ops/dashboard" } | ConvertTo-Json
+Invoke-WebRequest -Uri http://127.0.0.1:3000/api/login -Method POST -ContentType "application/json" -Body $body
+
+# Uji analytics overview
+Invoke-WebRequest -Uri http://127.0.0.1:3000/api/analytics/overview -Method GET

@@ -3,10 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/auth/server-auth', async (importOriginal) => {
   const actual = await importOriginal()
   return {
-...(actual as any),
+    ...(actual as any),
     getServerUserContext: vi.fn(),
-    // gunakan implementasi asli canViewSection untuk memvalidasi mapping peran
-    requireRole: (user: any, roles: string[]) => !!user && roles.includes(user.role),
   }
 })
 
@@ -27,7 +25,7 @@ vi.mock('@/lib/prisma', () => {
 
 import { getServerUserContext } from '@/lib/auth/server-auth'
 import { getAnalyticsOverviewForUser } from '@/lib/services/analytics-service'
-import { GET as GET_ENTRY } from '../fixtures/analytics-overview-route-entry'
+import { GET as GET_ENTRY } from '@/app/api/analytics/overview/route'
 // GET diimpor dinamis per test case untuk memastikan module mock berlaku
 
 const sample = {

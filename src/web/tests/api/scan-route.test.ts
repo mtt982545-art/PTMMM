@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('@/lib/auth/server-auth', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...(actual as any), getServerUserContext: vi.fn().mockResolvedValue({ id: 'UID-SEC', email: 'sec@ptmmm.co', role: 'security', warehouseIds: [], orgId: 'ORG-1', sectionsAllowed: ['events'] }) }
+})
+
 vi.mock('@/lib/services/scan-service', () => {
   return {
     createScanEvent: vi.fn().mockResolvedValue({ id: 'EVT-1' })

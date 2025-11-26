@@ -20,7 +20,7 @@
  */
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -46,29 +46,37 @@ export default function LoginPage() {
   const redirectParam = search.get('redirect') || '/dashboard';
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const exists = /(?:^|;\s*)csrf_token=/.test(document.cookie)
+      if (!exists) {
+        let token = ''
+        try {
+          const buf = new Uint8Array(16)
+          crypto.getRandomValues(buf)
+          token = Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('')
+        } catch {
+          token = Math.random().toString(36).slice(2)
+        }
+        const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
+        document.cookie = `csrf_token=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure}`
+      }
+    }
+  }, [])
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onSubmit' });
 
-  /**
-   * Login flow dengan error handling presisi
-   * 1. Form validation via react-hook-form + zod
-   * 2. Call loginWithPassword → handle specific error cases dengan presisi
-   * 3. Role-based redirect menggunakan mapping konsisten
-   * 4. Fallback ke redirectParam jika role tidak valid
-   * 5. Comprehensive error handling untuk UX yang optimal
-   */
   const onSubmit = async (values: FormValues) => {
     try {
       setLoading(true);
       
-      // Use the new client auth utility
       const result = await loginWithPassword(values.email, values.password);
       
       if (!result.success) {
-        // Handle specific error cases dengan presisi untuk UX yang baik
         const errorMessage = result.message.toLowerCase();
         
         if (errorMessage.includes('invalid login credentials') || errorMessage.includes('password')) {
@@ -80,7 +88,6 @@ export default function LoginPage() {
         } else if (errorMessage.includes('too many requests')) {
           toast.error('Terlalu banyak percobaan. Coba lagi dalam 1 menit');
         } else {
-          // Fallback untuk error yang tidak dikenal
           toast.error(result.message);
         }
         return;
@@ -88,23 +95,22 @@ export default function LoginPage() {
       
       toast.success('Login berhasil');
       
-      // Handle case where user has no role assigned
+      const isSafeRelativePath = (p: string) => /^\/(?!\/)[\w\-\/.?=&%]*$/.test(p);
+      const safeRedirect = (p?: string | null) => (p && isSafeRelativePath(p) ? p : null);
+
       if (!result.role) {
-        toast.warning('Role belum ditetapkan, redirect ke dashboard');
-        router.push(redirectParam);
+        toast.info('Akun Anda belum memiliki role, diarahkan ke dashboard umum.');
+        const destNullRole = safeRedirect((result as any).redirect) ?? safeRedirect(redirectParam) ?? '/dashboard';
+        router.push(destNullRole);
         return;
       }
       
-      // Get role-based redirect using consistent mapping
-      const redirectUrl = getClientRoleRedirect(result.role, redirectParam);
-      
-      console.log(`Login success: ${values.email} → role: ${result.role} → redirect: ${redirectUrl}`);
-      router.push(redirectUrl);
+      const preferApiRedirect = safeRedirect((result as any).redirect);
+      const roleRedirect = getClientRoleRedirect(result.role, '/dashboard');
+      const finalRedirect = preferApiRedirect ?? roleRedirect ?? safeRedirect(redirectParam) ?? '/dashboard';
+      router.push(finalRedirect);
       
     } catch (e: any) {
-      console.error('Login error:', e);
-      
-      // Handle network/server errors dengan presisi
       const errorMessage = e.message?.toLowerCase() || '';
       
       if (errorMessage.includes('network') || errorMessage.includes('failed to fetch')) {
@@ -114,7 +120,6 @@ export default function LoginPage() {
       } else if (errorMessage.includes('offline')) {
         toast.error('Anda sedang offline');
       } else {
-        // Fallback untuk error yang tidak dikenal
         toast.error('Terjadi kesalahan saat login');
       }
     } finally {

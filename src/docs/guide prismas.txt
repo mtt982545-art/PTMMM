@@ -1,0 +1,135 @@
+# PTMMM Ops – Migration Guide v0.4.0 (TiDB + Prisma + Multi-Gudang)
+
+Dokumen ini menjelaskan langkah migrasi dari skema operasional **lama** ke skema
+**v0.4.0** yang sudah terintegrasi dengan:
+
+- TiDB (database operasional)
+- Prisma (ORM di aplikasi Next.js)
+- Supabase (Auth + RBAC, *tidak diubah secara besar di versi ini*)
+
+Versi ini fokus pada:
+
+- Penambahan master:
+  - `logistic_vendor` (vendor ekspedisi eksternal)
+  - `vehicle` (armada)
+  - `driver_profile` (profil driver internal/eksternal)
+- Penambahan detail muatan:
+  - `shipment_item` (per barang/per kol, per gudang / per stop)
+- Penguatan flow multi-gudang:
+  - `route` dan `route_stop` (multi-stop: SDA → NGJ → SGS → SRG, dst.)
+- Penyelarasan:
+  - `schema.prisma` dengan skema TiDB
+  - `prisma/seed.ts` dengan data demo baru
+
+> **Tujuan utama:**  
+> Menambah kemampuan sistem (multi-gudang, multi-stop, vendor/driver/armada, muatan per kol)
+> **tanpa merusak** query dan flow lama yang hanya mengenal `shipments` + `scan_event`.
+
+---
+
+## 1. Scope Perubahan
+
+### 1.1. Tabel baru di TiDB (ops)
+
+Ditambahkan di `01_ptmmm_ops_schema.sql`:
+
+1. `logistic_vendor`
+2. `vehicle`
+3. `driver_profile`
+4. `shipment_item` (sebelumnya belum ada)
+
+Tabel yang **tetap** dan digunakan ulang:
+
+- `organization`
+- `warehouse`
+- `public_request`
+- `orders`
+- `route`
+- `route_stop`
+- `shipments`
+- `qr_ticket`
+- `scan_event`
+- `audit_log`
+- `inventory_kpi_daily`
+- `fleet_kpi_daily`
+
+### 1.2. Prisma schema baru
+
+File:
+
+- `schema.prisma`
+
+Diselaraskan dengan skema TiDB di atas, termasuk:
+
+- Model baru:
+  - `LogisticVendor`
+  - `Vehicle`
+  - `DriverProfile`
+  - `ShipmentItem`
+- Model lama yang tetap dipakai:
+  - `Organization`, `Warehouse`, `PublicRequest`, `Order`,
+    `Route`, `RouteStop`, `Shipment`, `QrTicket`, `ScanEvent`,
+    `AuditLog`, `InventoryKpiDaily`, `FleetKpiDaily`,
+    `TestConnection`, `ApiLog`.
+
+### 1.3. Seed baru (Prisma)
+
+File:
+
+- `prisma/seed.ts`
+
+Mengisi data demo:
+
+- 1 organisasi: PTMMM
+- 5 gudang: SBY, SDA, NGJ, SGS, SRG
+- 1 vendor ekspedisi eksternal
+- 2 kendaraan (internal & eksternal)
+- 2 driver profile (internal & vendor)
+- 2 shipment:
+  - `SHP-001` (single leg, SBY → Jakarta)
+  - `SHP-ROUTE-001` (multi-stop, SDA → NGJ → SGS → SRG)
+- 1 route multi-gudang + `route_stop` (4 stop)
+- 1 `qr_ticket` untuk `SHP-ROUTE-001`
+- `shipment_item` per kol (detil barang & berat)
+- `scan_event` lengkap (gate_in, load_finish, gate_out, POD)
+- 1 baris KPI di `inventory_kpi_daily` dan `fleet_kpi_daily`
+
+---
+
+## 2. Prasyarat
+
+Sebelum migrasi:
+
+1. Aplikasi lama (Next.js + Prisma) sudah berjalan dengan:
+   - Koneksi ke TiDB melalui `DATABASE_URL`
+   - Schema sebelumnya (tanpa `logistic_vendor`, `vehicle`, `driver_profile`, `shipment_item`)
+   - Flow dasar:
+     - `shipments` + `scan_event` untuk tracking
+     - Integrasi minimal dengan Supabase Auth (role admin/ops/warehouse/security/driver)
+
+2. Supabase:
+   - Struktur role & RLS tetap memakai skema:
+     - `auth.users`
+     - `public.users`
+     - `public.app_role`
+     - `public.user_org_role`
+     - `public.warehouse_member`
+   - **Tidak ada perubahan besar** pada bagian ini di v0.4.0.
+
+3. Backup:
+   - Sudah melakukan backup TiDB (minimal export schema & data penting).
+
+---
+
+## 3. Langkah Migrasi Database (TiDB)
+
+> Semua perintah di bawah ini jalankan di environment **non-produksi lebih dulu**  
+> (staging / demo) sebelum dipakai di produksi.
+
+### 3.1. Apply schema ops v0.4.0
+
+Jalankan skrip:
+
+```bash
+# contoh (sesuaikan dsn TiDB)
+mysql -h <TIDB_HOST> -P <PORT> -u <USER> -p ptmmm_ops < 01_ptmmm_ops_schema.sql

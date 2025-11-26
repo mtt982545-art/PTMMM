@@ -3,28 +3,21 @@ export const runtime = 'nodejs'
 import { toHttpResponse } from '@/lib/errors'
 import { getTrackingTimeline } from '@/lib/services/tracking-service'
 import { logApiAccess, logApiError } from '@/lib/logging'
-import { applyRateLimit } from '@/lib/rate-limit'
+import { guardApiRoute } from '@/lib/auth/route-guard'
 
-/**
- * Endpoint publik tracking timeline
- * - Rate limit: 60 req/menit per IP
- * - Respons sukses: { ok: true, data }
- * - Not found: { ok: false, message: 'Not found' }
- */
-export async function GET(_req: Request, { params }: { params: { token: string } }) {
+export const GET = guardApiRoute(async (_req: Request, ctx, args?: { params: { token: string } }) => {
   const start = Date.now()
+  const token = args?.params?.token as string
   try {
-    const limited = applyRateLimit(_req, { path: '/api/tracking', limit: 60, windowMs: 60_000 })
-    if (limited) return limited
-    const data = await getTrackingTimeline(params.token)
+    const data = await getTrackingTimeline(token)
     if (!data) {
-      logApiAccess(`/api/tracking/${params.token}`, 'GET', 404, undefined, 'not-found', Date.now() - start)
+      logApiAccess(`/api/tracking/${token}`, 'GET', 404, ctx.email, 'not-found', Date.now() - start)
       return Response.json({ ok: false, message: 'Not found' }, { status: 404 })
     }
-    logApiAccess(`/api/tracking/${params.token}`, 'GET', 200, undefined, 'ok', Date.now() - start)
+    logApiAccess(`/api/tracking/${token}`, 'GET', 200, ctx.email, 'ok', Date.now() - start)
     return Response.json({ ok: true, data })
   } catch (error) {
-    logApiError(`/api/tracking/${params.token}`, error)
+    logApiError(`/api/tracking/${token}`, error)
     return toHttpResponse(error)
   }
-}
+}, { section: 'shipments', roles: ['admin','ops','driver'], rateLimit: { path: '/api/tracking', limit: 60, windowMs: 60_000 } })

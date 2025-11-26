@@ -69,7 +69,106 @@ export function computeStatuses(types: TrackingEventType[], lastType: TrackingEv
   })
 }
 
+// Deduplikasi Timeline Driver:
+// - Key dedup: eventType + shipmentId (fallback formCode bila shipmentId kosong)
+// - Last writer wins: pilih event dengan waktu paling baru (ts jika ada, else createdAt)
+// - Dilakukan di layer baca saja, tidak mengubah baris scan_event (audit trail tetap utuh)
+function normalizeTs(row: any): Date {
+  return (row?.ts ?? row?.createdAt) as Date
+}
+
+// Perbedaan alur:
+// - Timeline Driver menggunakan hasil dedup ini
+// - KPI Admin/Marketing menghitung semua raw event (lihat analytics-service)
+function deduplicateScanEvents(rows: any[]): any[] {
+  const latestByKey = new Map<string, any>()
+  for (const r of rows) {
+    const key = `${r.eventType}|${r.shipmentId ?? r.formCode ?? ''}`
+    const cur = latestByKey.get(key)
+    if (!cur) {
+      latestByKey.set(key, r)
+      continue
+    }
+    const a = normalizeTs(cur).getTime()
+    const b = normalizeTs(r).getTime()
+    if (b >= a) latestByKey.set(key, r)
+  }
+  const deduped = Array.from(latestByKey.values())
+  deduped.sort((x, y) => normalizeTs(x).getTime() - normalizeTs(y).getTime())
+  return deduped
+}
+
 export async function getTrackingTimeline(token: string): Promise<TrackingTimeline | null> {
+  let qr: any = null
+  try {
+    qr = await (prisma as any).qrTicket.findFirst({ where: { token }, include: { shipment: true } })
+  } catch {}
+
+  if (qr) {
+    let rows: any[] = []
+    try {
+      rows = await prisma.scanEvent.findMany({
+        where: { OR: [{ qrTicketId: qr.id }, { shipmentId: qr.shipmentId }] },
+        orderBy: { createdAt: 'asc' },
+      })
+    } catch {}
+    rows = deduplicateScanEvents(rows)
+    // Security/Ops events (gate_in/gate_out, load_start/load_finish) + Driver pod → timeline & KPI
+    if (!rows.length && token === 'FORM-OPS-001') {
+      const now = Date.now()
+      const mock = [
+        { id: 'M1', eventType: 'gate_in', ts: new Date(now - 1000 * 60 * 60 * 24), payload: { location: 'Surabaya', description: 'Kendaraan masuk gerbang' }, warehouseId: 'WH-SBY', refType: 'Gate' },
+        { id: 'M2', eventType: 'load_start', ts: new Date(now - 1000 * 60 * 60 * 20), payload: { location: 'Gudang SBY', description: 'Mulai muat' }, warehouseId: 'WH-SBY', refType: 'Ops' },
+        { id: 'M3', eventType: 'scan', ts: new Date(now - 1000 * 60 * 60 * 2), payload: { location: 'Checkpoint Cirebon', description: 'Checkpoint Cirebon', eta: new Date(now + 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10) }, warehouseId: 'WH-CRB', refType: 'Scan' },
+      ]
+      const last = mock[mock.length - 1]
+      const lastType = last.eventType as TrackingEventType
+      const statuses = computeStatuses(mock.map((f) => f.eventType as TrackingEventType), lastType)
+      const events: TrackingEventItem[] = mock.map((f, i) => ({
+        id: f.id,
+        event_type: f.eventType as TrackingEventType,
+        event_time: (f.ts as Date).toISOString(),
+        location: getPayloadString(f.payload as unknown as Prisma.JsonValue, 'location') ?? f.warehouseId ?? '—',
+        description: getPayloadString(f.payload as unknown as Prisma.JsonValue, 'description') ?? f.refType ?? '—',
+        status: statuses[i],
+      }))
+      const estimated = getPayloadString(last.payload as unknown as Prisma.JsonValue, 'eta')
+      return {
+        token,
+        shipment_id: qr.shipmentId ?? 'SHIP-OPS-001',
+        customer_name: qr.shipment ? qr.shipment.customer : 'PT Demo Logistik',
+        origin: qr.shipment ? qr.shipment.origin : 'Surabaya',
+        destination: qr.shipment ? qr.shipment.destination : 'Jakarta',
+        status: 'In Transit',
+        events,
+        estimated_delivery: estimated ?? null,
+      }
+    }
+    const last = rows[rows.length - 1] || null
+    const lastType = last ? (last.eventType as TrackingEventType) : null
+    const statuses = computeStatuses(rows.map((f) => f.eventType as TrackingEventType), lastType)
+    const events: TrackingEventItem[] = rows.map((f, i) => ({
+      id: f.id,
+      event_type: f.eventType as TrackingEventType,
+      event_time: (f.ts ?? f.createdAt).toISOString(),
+      location: getPayloadString(f.payload as Prisma.JsonValue, 'location') ?? f.warehouseId ?? '—',
+      description: getPayloadString(f.payload as Prisma.JsonValue, 'description') ?? f.refType ?? '—',
+      status: statuses[i],
+    }))
+    const status = lastType === 'pod' ? 'Delivered' : rows.length ? 'In Transit' : 'In Transit'
+    const estimated = last ? getPayloadString(last.payload as Prisma.JsonValue, 'eta') : null
+    return {
+      token,
+      shipment_id: qr.shipmentId ?? null,
+      customer_name: qr.shipment ? qr.shipment.customer : null,
+      origin: qr.shipment ? qr.shipment.origin : null,
+      destination: qr.shipment ? qr.shipment.destination : null,
+      status,
+      events,
+      estimated_delivery: estimated ?? null,
+    }
+  }
+
   let rows: any[] = []
   try {
     rows = await prisma.scanEvent.findMany({
@@ -77,6 +176,7 @@ export async function getTrackingTimeline(token: string): Promise<TrackingTimeli
       orderBy: { createdAt: 'asc' },
     })
   } catch {}
+  rows = deduplicateScanEvents(rows)
   if (!rows.length) {
     if (token === 'FORM-OPS-001') {
       const now = Date.now()
@@ -117,12 +217,10 @@ export async function getTrackingTimeline(token: string): Promise<TrackingTimeli
     id: f.id,
     event_type: f.eventType as TrackingEventType,
     event_time: (f.ts ?? f.createdAt).toISOString(),
-    // Location & Description aman: fallback ke warehouseId/refType atau '—' jika kosong
     location: getPayloadString(f.payload as Prisma.JsonValue, 'location') ?? f.warehouseId ?? '—',
     description: getPayloadString(f.payload as Prisma.JsonValue, 'description') ?? f.refType ?? '—',
     status: statuses[i],
   }))
-  // Status akhir: Delivered hanya jika lastType = 'pod', selain itu In Transit
   const status = lastType === 'pod' ? 'Delivered' : 'In Transit'
   const estimated = getPayloadString(last.payload as Prisma.JsonValue, 'eta')
   return {

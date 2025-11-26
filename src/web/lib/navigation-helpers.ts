@@ -59,10 +59,10 @@ export function getRoleNavigation(role: AppRole | null, userEmail?: string): Nav
       { name: 'Dashboard', href: '/dashboard' }
     ],
     marketing: [
-      { name: 'Marketing Dashboard', href: '/marketing/dashboard' }
+      { name: 'Marketing Dashboard', href: '/dashboard/marketing' }
     ],
     ops: [
-      { name: 'Ops Dashboard', href: '/ops/dashboard' },
+      { name: 'Ops Dashboard', href: '/ops/load' },
       { name: 'Scan Event', href: '/scan' }
     ],
     security: [
