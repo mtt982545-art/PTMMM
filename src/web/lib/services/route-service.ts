@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
 
 export interface RouteStopSummary {
   id: string
@@ -87,15 +86,19 @@ export async function getRouteWithStopsAndItems(code: string): Promise<RouteDeta
   const activeLegIndex = computeActiveLegIndex(route.shipments as any, routePath.length)
 
   const stops: RouteStopSummary[] = route.stops.map((s) => {
-    const toDec = (v: any) => new Prisma.Decimal(v && typeof v === 'object' ? v.toString() : v ?? 0)
+    const toNum = (v: any) => {
+      const src = v && typeof v === 'object' ? v.toString() : v ?? 0
+      const n = Number(src)
+      return Number.isFinite(n) ? n : 0
+    }
     const collyTotal = s.shipmentItems.reduce((sum, i) => sum + (i.collyCount || 0), 0)
     const weightTotal = s.shipmentItems.reduce(
-      (sum, i) => sum.add(i.weightKg ? toDec(i.weightKg) : new Prisma.Decimal(0)),
-      new Prisma.Decimal(0)
+      (sum, i) => sum + (i.weightKg ? toNum(i.weightKg) : 0),
+      0
     )
     const volumeTotal = s.shipmentItems.reduce(
-      (sum, i) => sum.add(i.volumeM3 ? toDec(i.volumeM3) : new Prisma.Decimal(0)),
-      new Prisma.Decimal(0)
+      (sum, i) => sum + (i.volumeM3 ? toNum(i.volumeM3) : 0),
+      0
     )
 
     const status = deriveStopStatusForWarehouse(s.warehouseId, routePath, activeLegIndex)

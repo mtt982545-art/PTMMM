@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { UserContext } from '@/lib/types'
 import { createMmSyncService } from '@/lib/services/mm-sync-service'
@@ -38,9 +37,9 @@ async function validateGpsShipment(ctx: UserContext, parsed: GpsPingInput) {
 }
 
 export async function insertGpsPing(ctx: UserContext, parsed: GpsPingInput) {
-  const lat = new Prisma.Decimal(parsed.lat)
-  const lng = new Prisma.Decimal(parsed.lng)
-  const speed = typeof parsed.speed === 'number' ? new Prisma.Decimal(parsed.speed) : null
+  const lat = Number.isFinite(parsed.lat) ? parsed.lat : 0
+  const lng = Number.isFinite(parsed.lng) ? parsed.lng : 0
+  const speed = typeof parsed.speed === 'number' ? (Number.isFinite(parsed.speed) ? parsed.speed : 0) : null
   const ts = parsed.ts ? new Date(parsed.ts) : new Date()
   const shipInternalId = await resolveShipmentId(parsed.shipmentId)
   return (prisma as any).trackingPing.create({
