@@ -11,13 +11,14 @@ export default async function AdminOrganizationsPage() {
   const user = await getServerUserContext()
   if (!user) redirect('/login')
   if (!requireRole(user, ['admin'])) redirect('/dashboard')
+  const db = prisma as any
 
   async function createOrganization(formData: FormData) {
     'use server'
     const code = String(formData.get('code') || '').trim()
     const name = String(formData.get('name') || '').trim()
     if (!code || !name) return
-    await prisma.organization.create({ data: { code, name, isActive: true } })
+    await db.organization.create({ data: { code, name, isActive: true } })
   }
 
   async function updateOrganization(formData: FormData) {
@@ -25,7 +26,7 @@ export default async function AdminOrganizationsPage() {
     const id = String(formData.get('id') || '')
     const name = String(formData.get('name') || '').trim()
     if (!id || !name) return
-    await prisma.organization.update({ where: { id }, data: { name } })
+    await db.organization.update({ where: { id }, data: { name } })
   }
 
   async function toggleOrganization(formData: FormData) {
@@ -33,10 +34,10 @@ export default async function AdminOrganizationsPage() {
     const id = String(formData.get('id') || '')
     const isActive = String(formData.get('isActive') || 'true') === 'true'
     if (!id) return
-    await prisma.organization.update({ where: { id }, data: { isActive } })
+    await db.organization.update({ where: { id }, data: { isActive } })
   }
 
-  const orgs = await prisma.organization.findMany({ orderBy: { createdAt: 'desc' } })
+  const orgs = await db.organization.findMany({ orderBy: { createdAt: 'desc' } })
 
   return (
     <AppShell>

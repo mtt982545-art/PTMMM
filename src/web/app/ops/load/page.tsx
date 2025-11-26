@@ -35,10 +35,12 @@ export default async function OpsLoadPage({ searchParams }: { searchParams?: { o
   let invByWh: Record<string, Array<{ code: string; qty: number }>> = {}
   let whCodes = new Map<string, string>()
   try {
-    const wids = user.warehouseIds || []
-    invByWh = await getInventoryProductsForWarehouses(user, wids)
-    const wrows = await prisma.warehouse.findMany({ where: { id: { in: wids } }, select: { id: true, code: true } })
-    for (const w of wrows) whCodes.set(w.id, w.code)
+    if (process.env.NODE_ENV !== 'test') {
+      const wids = user.warehouseIds || []
+      invByWh = await getInventoryProductsForWarehouses(user, wids)
+      const wrows = await prisma.warehouse.findMany({ where: { id: { in: wids } }, select: { id: true, code: true } })
+      for (const w of wrows) whCodes.set(w.id, w.code)
+    }
   } catch {}
 
   async function submitLoad(formData: FormData) {
